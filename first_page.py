@@ -1,7 +1,9 @@
 import requests
+import redis
 from collections import deque
 from time import time, sleep
 from bs4 import BeautifulSoup
+from urllib.parse import urlparse
 
 # 10 seconds delay between fetching page from the same domain
 DEFAULT_TIMEOUT = 10  
@@ -12,8 +14,8 @@ throttling_times = {}
 
 def load_urls():
   """
-  >>> load_urls()
-  deque(['https://www.finn.no/bap/forsale/search.html?search_type=SEARCH_ID_BAP_ALL&sub_category=1.86.92&q=elektron'])
+  >>> list(load_urls())
+  ['https://www.finn.no/bap/forsale/search.html?search_type=SEARCH_ID_BAP_ALL&sub_category=1.86.92&q=elektron']
   """
   return urls
 
@@ -31,13 +33,19 @@ def get_throttling_time(url):
   timeout = DEFAULT_TIMEOUT - min([time() - throttling_times.get('url', 0) , DEFAULT_TIMEOUT])
   return timeout
 
-def update_throttling_times(url):
-  throttling_times[domain_name] = time()
+def update_throttling_time(url):
+  """
+  >>> update_throttling_time('https://www.finn.no/bap/forsale/search.html?search_type=SEARCH_ID_BAP')
+  'www.finn.no'
+  """
+  domain = urlparse(url).netloc
+  throttling_times[domain] = time()
+  return domain
 
 def get_page(url):
   sleep(get_throttling_time(url))
   page = requests.get(url)
-  update_throttling_times(url)
+  update_throttling_time(url)
   return page.content
 
 def add_to_queue(urls, url):
