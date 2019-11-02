@@ -1,21 +1,69 @@
 import requests
+from collections import deque
+from time import time, sleep
 from bs4 import BeautifulSoup
 
-url = 'https://www.finn.no/bap/forsale/search.html?search_type=SEARCH_ID_BAP_ALL&sub_category=1.86.92&q=elektron'
+# 10 seconds delay between fetching page from the same domain
+DEFAULT_TIMEOUT = 10  
 
+urls = deque(['https://www.finn.no/bap/forsale/search.html?search_type=SEARCH_ID_BAP_ALL&sub_category=1.86.92&q=elektron'])
+
+throttling_times = {}
 
 def load_urls():
-  return [url]
+  """
+  >>> load_urls()
+  deque(['https://www.finn.no/bap/forsale/search.html?search_type=SEARCH_ID_BAP_ALL&sub_category=1.86.92&q=elektron'])
+  """
+  return urls
 
+
+def get_throttling_time(url):
+  """
+  >>> throttling_times['url'] = 20
+  >>> get_throttling_time("url")
+  0
+  >>> import time
+  >>> throttling_times['url'] = time.time()
+  >>> round(get_throttling_time("url"))
+  10
+  """
+  timeout = DEFAULT_TIMEOUT - min([time() - throttling_times.get('url', 0) , DEFAULT_TIMEOUT])
+  return timeout
+
+def update_throttling_times(url):
+  throttling_times[domain_name] = time()
 
 def get_page(url):
+  sleep(get_throttling_time(url))
   page = requests.get(url)
+  update_throttling_times(url)
   return page.content
 
+def add_to_queue(urls, url):
+  """
+  >>> urls = deque([])
+  >>> list(add_to_queue(urls, 'test'))
+  ['test']
+  """
+  urls.append(url)
+  return urls
+
+def read_from_queue(urls):
+  """
+  >>> urls = deque(['test', 'dwa', 'trzey'])
+  >>> read_from_queue(urls)
+  'test'
+  """
+  return urls.popleft()
 
 def scrape_page(page_content):
   soup = BeautifulSoup(page_content, 'html.parser')
   items = []
+  
+  next_page = soup.find("a", {'rel': 'next'}).attrs['href']
+  add_to_queue(urls, next_page)
+
   for article in soup.find_all('article'):
       link = article.find("a", {'class': 'ads__unit__link'}).attrs['href']
       image = article.find("img").attrs['src']
@@ -39,11 +87,13 @@ def prepare_report(items):
 
 def main():
   items = []
-  urls = load_urls()
-  for url in urls:
+  
+  while len(urls):
+    url = read_from_queue(urls)
     page = get_page(url)
     page_items = scrape_page(page)
-  items = items + page_items
+    items = items + page_items
+
   prepare_report(items)
 
 if __name__ == "__main__":
