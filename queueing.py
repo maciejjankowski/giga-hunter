@@ -1,3 +1,5 @@
+import redis
+
 def add_to_queue(urls, url):
   """
   >>> urls = deque([])

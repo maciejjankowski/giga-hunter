@@ -1,5 +1,4 @@
 import requests
-import redis
 from collections import deque
 from time import time, sleep
 from bs4 import BeautifulSoup
